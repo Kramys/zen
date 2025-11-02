@@ -2,57 +2,91 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Zen the Tech — Matrix Mode</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root{
     --bg:#000;
-    --green:#00ff95;
-    --rain:#18ff62;
-    --ghost:#0a3;
+    --green:#00ff95;      /* primary neon */
+    --rain:#18ff62;       /* code rain glyphs */
+    --ghost:#0a3;         /* dim tail */
   }
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0}
+
+  html,body{margin:0}
   body{
     background: var(--bg);
     color:#cfe;
     font-family: "Consolas","Courier New",monospace;
-    overflow:hidden;
+    /* FIX: allow scrolling on desktop */
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 100vh;
   }
+
+  /* Canvas fills background for the Matrix rain */
   #matrix{
     position:fixed; inset:0; z-index:0; background:#000;
-    display:block; /* important for some desktops */
+    /* FIX: let clicks/scroll pass through */
+    pointer-events: none;
   }
+
+  /* Subtle vignette for depth */
   .vignette::after{
-    content:""; position:fixed; inset:0; z-index:1; pointer-events:none;
+    content:""; position:fixed; inset:0; z-index:1;
+    pointer-events:none;
     background: radial-gradient(ellipse at center, #0000 30%, #0008 100%);
   }
+
+  /* Poem card */
   .poem{
     position:relative; z-index:2;
-    max-width: 760px; margin: 6vh auto;
+    max-width: 760px; margin: 6vh auto 10vh;
     padding: 36px 28px;
     text-align:center; line-height:1.75;
     color:#ccffdd;
     border:1px solid #094;
     border-radius:12px;
     background: rgba(0,20,0,.35);
-    box-shadow: 0 0 0 1px #0a3 inset, 0 0 22px #072 inset, 0 0 24px rgba(0,255,153,.25);
+    box-shadow:
+      0 0 0 1px #0a3 inset,
+      0 0 22px #072 inset,
+      0 0 24px rgba(0,255,153,.25);
     backdrop-filter: blur(2px);
   }
+
   h1{
-    margin:0 0 14px 0; font-size: 34px; color: var(--green);
+    margin:0 0 14px 0;
+    font-size: 34px;
+    color: var(--green);
     text-shadow: 0 0 10px rgba(0,255,149,.55), 0 0 2px #0a3;
   }
-  p{ white-space: pre-line; font-size: 12px; color:#cfffde; text-shadow: 0 0 4px rgba(0,255,149,.25); }
-  .prompt{ margin-top:10px; font-size:12px; color:#8fefb7; opacity:.8; }
-  .caret{ display:inline-block; width:8px; height:14px; background:var(--green); margin-left:6px; animation: blink 1s steps(1) infinite; box-shadow: 0 0 8px var(--green); vertical-align: -2px; }
-  @keyframes blink { 50% { opacity: 0; } }
-  .toolbar{
-    position: fixed; right: 10px; bottom: 10px; z-index: 3; font-size: 12px; color:#9fe;
-    background: rgba(0,0,0,.5); border:1px solid #094; border-radius: 8px; padding: 6px 10px;
+
+  p{
+    white-space: pre-line;
+    font-size: 18px;
+    color:#cfffde;
+    text-shadow: 0 0 4px rgba(0,255,149,.25);
   }
-  .toolbar label{ cursor:pointer; user-select:none; }
-  @media (max-width:520px){ .poem{ margin:4vh 12px; padding:24px 18px; } h1{ font-size:26px; } p{ font-size:16px; } }
+
+  /* Tiny animated caret under the card, just for fun */
+  .prompt{
+    margin-top: 10px; font-size: 12px; color:#8fefb7; opacity:.8;
+  }
+  .caret{
+    display:inline-block; width:8px; height:14px; background:var(--green);
+    margin-left:6px; animation: blink 1s steps(1) infinite;
+    box-shadow: 0 0 8px var(--green);
+    vertical-align: -2px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Mobile tweaks */
+  @media (max-width: 520px){
+    .poem{ margin: 4vh 12px 8vh; padding: 24px 18px; }
+    h1{ font-size: 26px; }
+    p{ font-size: 16px; }
+  }
 </style>
 </head>
 <body class="vignette">
@@ -90,50 +124,30 @@ She blasts out static, “Close enough, right?”
   <div class="prompt">wake up, Zen<span class="caret"></span></div>
 </div>
 
-<div class="toolbar">
-  <label><input type="checkbox" id="reduce" /> Reduce motion</label>
-</div>
-
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+/* Matrix rain effect — lightweight and responsive */
+(function(){
   const canvas = document.getElementById('matrix');
-  const ctx = canvas.getContext('2d', { alpha: false });
-  if(!ctx){
-    // Fallback: static gradient if canvas blocked
-    canvas.style.background = 'linear-gradient(#000,#022)';
-    return;
-  }
+  const ctx = canvas.getContext('2d');
 
-  // DPR-aware sizing for crisp, reliable drawing on desktop
   let w, h, cols, drops, fontSize;
-  function sizeCanvas(){
-    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const cssW = window.innerWidth;
-    const cssH = window.innerHeight;
-    canvas.width  = Math.floor(cssW * dpr);
-    canvas.height = Math.floor(cssH * dpr);
-    canvas.style.width  = cssW + 'px';
-    canvas.style.height = cssH + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // scale drawing to CSS pixels
+  const glyphs = 'アカサタナハマヤラワ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-    fontSize = Math.max(14, Math.floor(cssW / 60));
-    cols = Math.floor(cssW / fontSize);
-    drops = new Array(cols).fill(0).map(()=> Math.floor(Math.random()*cssH/fontSize));
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    fontSize = Math.max(14, Math.floor(w / 60));       // responsive glyph size
+    cols = Math.floor(w / fontSize);
+    drops = new Array(cols).fill(0).map(()=> Math.floor(Math.random()*h/fontSize));
     ctx.font = fontSize + "px Consolas, monospace";
   }
-
-  const glyphs = 'アカサタナハマヤラワ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const reduceToggle = document.getElementById('reduce');
-  if(reduceToggle){ reduceToggle.checked = reduceMotion; reduceToggle.addEventListener('change', ()=> reduceMotion = reduceToggle.checked); }
-
-  window.addEventListener('resize', sizeCanvas, { passive: true });
-  sizeCanvas();
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
 
   function draw(){
-    // translucent black rect to create trails
+    // translucent black rect to create fading trails
     ctx.fillStyle = 'rgba(0,0,0,0.08)';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillRect(0,0,w,h);
 
     for(let i=0; i<cols; i++){
       const char = glyphs.charAt(Math.floor(Math.random()*glyphs.length));
@@ -144,19 +158,18 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fillStyle = '#0a3';
       ctx.fillText(char, x, y - fontSize);
 
-      // head
+      // head (brighter)
       ctx.fillStyle = '#18ff62';
       ctx.fillText(char, x, y);
 
       // reset/drop logic
-      const bottom = canvas.height / (ctx.getTransform().a); // convert to CSS px
-      if(y > bottom && Math.random() > 0.975){ drops[i] = 0; }
-      else { drops[i] += reduceMotion ? 0.5 : 1; }
+      if(y > h && Math.random() > 0.975){ drops[i] = 0; }
+      else { drops[i]++; }
     }
     requestAnimationFrame(draw);
   }
   draw();
-});
+})();
 </script>
 
 </body>
