@@ -1,35 +1,170 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Zen the Tech</title>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Zen the Tech — Matrix Mode</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  body { font:18px/1.6 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; display:flex; min-height:100vh; align-items:center; justify-content:center; background:#f6f7fb; margin:0; }
-  .card { background:#fff; padding:24px 28px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.08); white-space:pre-line; text-align:center; }
+  :root{
+    --bg:#000;
+    --green:#00ff95;      /* primary neon */
+    --rain:#18ff62;       /* code rain glyphs */
+    --ghost:#0a3;         /* dim tail */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background: var(--bg);
+    color:#cfe;
+    font-family: "Consolas","Courier New",monospace;
+    overflow:hidden;
+  }
+
+  /* Canvas fills background for the Matrix rain */
+  #matrix{
+    position:fixed; inset:0; z-index:0; background:#000;
+  }
+
+  /* Subtle vignette for depth */
+  .vignette::after{
+    content:""; position:fixed; inset:0; z-index:1;
+    pointer-events:none;
+    background: radial-gradient(ellipse at center, #0000 30%, #0008 100%);
+  }
+
+  /* Poem card */
+  .poem{
+    position:relative; z-index:2;
+    max-width: 760px; margin: 6vh auto;
+    padding: 36px 28px;
+    text-align:center; line-height:1.75;
+    color:#ccffdd;
+    border:1px solid #094;
+    border-radius:12px;
+    background: rgba(0,20,0,.35);
+    box-shadow:
+      0 0 0 1px #0a3 inset,
+      0 0 22px #072 inset,
+      0 0 24px rgba(0,255,153,.25);
+    backdrop-filter: blur(2px);
+  }
+
+  h1{
+    margin:0 0 14px 0;
+    font-size: 34px;
+    color: var(--green);
+    text-shadow: 0 0 10px rgba(0,255,149,.55), 0 0 2px #0a3;
+  }
+
+  p{
+    white-space: pre-line;
+    font-size: 18px;
+    color:#cfffde;
+    text-shadow: 0 0 4px rgba(0,255,149,.25);
+  }
+
+  /* Tiny animated caret under the card, just for fun */
+  .prompt{
+    margin-top: 10px; font-size: 12px; color:#8fefb7; opacity:.8;
+  }
+  .caret{
+    display:inline-block; width:8px; height:14px; background:var(--green);
+    margin-left:6px; animation: blink 1s steps(1) infinite;
+    box-shadow: 0 0 8px var(--green);
+    vertical-align: -2px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Mobile tweaks */
+  @media (max-width: 520px){
+    .poem{ margin: 4vh 12px; padding: 24px 18px; }
+    h1{ font-size: 26px; }
+    p{ font-size: 16px; }
+  }
 </style>
-<div class="card">
-Zen the Tech
-  
+</head>
+<body class="vignette">
+
+<canvas id="matrix" aria-hidden="true"></canvas>
+
+<div class="poem" role="article" aria-labelledby="title">
+  <h1 id="title">Zen the Tech</h1>
+  <p>
 Zen the tech, so calm, so bright,
 His jacket’s on from morn till night.
 He rides his bike with quiet flair,
 And fixes IT bugs with gentle care.
-  
+
 He’s got a Staffy by his side,
 A Monster Mango for the ride.
 No Windows crash can steal his breath,
 He laughs at the Blue Screen of Death.
-  
+
 At the end of a Youngtown day,
 He powers down in his own way.
 Rice for dinner, no champagne,
 Tomorrow he’ll debug again.
-  
+
 Samsung Galaxy Tab in hand,
 Technology at his command.
 It hits the floor, he doesn’t frown,
 Of course, he’s stuck a screen protector down!
-  
+
 Coke and Biscoff sweetened his day,
 Oculus worlds not far away.
 “Alexa,” he says, “play something tight.”
 She blasts out static, “Close enough, right?”
+  </p>
+  <div class="prompt">wake up, Zen<span class="caret"></span></div>
 </div>
+
+<script>
+/* Matrix rain effect — lightweight and responsive */
+(function(){
+  const canvas = document.getElementById('matrix');
+  const ctx = canvas.getContext('2d');
+
+  let w, h, cols, drops, fontSize;
+  const glyphs = 'アカサタナハマヤラワ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    fontSize = Math.max(14, Math.floor(w / 60));       // responsive glyph size
+    cols = Math.floor(w / fontSize);
+    drops = new Array(cols).fill(0).map(()=> Math.floor(Math.random()*h/fontSize));
+    ctx.font = fontSize + "px Consolas, monospace";
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  function draw(){
+    // translucent black rect to create fading trails
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0,0,w,h);
+
+    for(let i=0; i<cols; i++){
+      const char = glyphs.charAt(Math.floor(Math.random()*glyphs.length));
+      const x = i * fontSize;
+      const y = drops[i] * fontSize;
+
+      // tail
+      ctx.fillStyle = '#0a3';
+      ctx.fillText(char, x, y - fontSize);
+
+      // head (brighter)
+      ctx.fillStyle = '#18ff62';
+      ctx.fillText(char, x, y);
+
+      // reset/drop logic
+      if(y > h && Math.random() > 0.975){ drops[i] = 0; }
+      else { drops[i]++; }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+</body>
+</html>
